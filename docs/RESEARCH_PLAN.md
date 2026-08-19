@@ -18,42 +18,60 @@ Keep fixed across milestone checkpoints:
 - inference temperature and ODE steps
 - evaluation prompts
 - blind listening procedure
+- rating definitions and primary/secondary endpoint roles
 
 The canonical scaling run does not promote a later checkpoint merely because it is newer.
 
-## Milestones
+## Formal milestones
 
-Primary comparison points:
+Primary formal comparison points:
 
 - ~100k optimizer updates: established early long-form baseline
-- ~150k: intermediate checkpoint
 - ~300k
 - ~400k
-- ~500k if the quality-improvement slope remains meaningful
+- ~500k if the stopping rule supports continuing
 
-At every major milestone:
+An available ~150k checkpoint may be retained as an **intermediate descriptive checkpoint**, but the preregistered main hypotheses use 100k/300k/400k/500k so that the primary comparisons remain simple and fixed.
+
+At every formal milestone:
 
 1. Verify checkpoint epoch, global optimizer step, and SHA-256.
-2. Generate the same long-form evaluation set under the same vocoder and inference settings.
+2. Generate the exact same protocol-locked evaluation set under the same vocoder and inference settings.
 3. Run blinded pairwise or multi-way listening comparisons.
-4. Score naturalness, artifact severity, intelligibility, phrase stability, endings, and speaker consistency.
-5. Record qualitative recurring artifacts separately from broad synthetic texture.
+4. Score the frozen rating dimensions.
+5. Record artifact scope (`none`, `broad_texture`, `local_event`, `both`) plus optional notes.
+6. Export blind results before revealing checkpoint identity.
+7. Run the preregistered paired analysis and stopping-rule summary after reveal.
+
+## Protocol documents
+
+The detailed study design is versioned separately so it can be frozen before formal evaluation:
+
+- [`EVALUATION_PROTOCOL_V1.md`](EVALUATION_PROTOCOL_V1.md)
+- [`HYPOTHESES_AND_STOPPING_RULE_V1.md`](HYPOTHESES_AND_STOPPING_RULE_V1.md)
+- [`ANALYSIS_PLAN_V1.md`](ANALYSIS_PLAN_V1.md)
+- [`BLIND_EVAL_STUDIO_V2_SPEC.md`](BLIND_EVAL_STUDIO_V2_SPEC.md)
+- machine-readable protocol: [`../protocols/matcha_scaling_v1.json`](../protocols/matcha_scaling_v1.json)
+
+Once the first formal ~300k evaluation begins, prompt text, rating anchors, endpoint roles, and decision thresholds should not be silently changed.
 
 ## Hypotheses
 
-H1: Broad machine-like texture decreases materially between ~100k and ~300k updates.
+H1: Overall perceptual gain from ~100k to ~300k is larger than the gain from ~300k to ~500k.
 
-H2: Improvements continue into the 300k–500k region but with diminishing returns.
+H2: Broad synthetic texture prevalence declines monotonically or near-monotonically across formal milestones.
 
-H3: Fixed phoneme/context-local artifacts persist longer than broad texture and may plateau even when overall naturalness improves.
+H3: Fixed phoneme/context-local artifacts improve more slowly after ~300k and may plateau even when broad quality continues to improve.
 
-H4: If a local artifact remains nearly unchanged while broad quality improves, architecture/data/phoneme-context analysis is more productive than additional blind training.
+H4: Intelligibility reaches ceiling earlier than naturalness, so late training mainly improves perceptual quality rather than basic comprehensibility.
 
 H5: The broad relationship between optimizer-update count and perceptual improvement should reproduce qualitatively on a second speaker, even if the exact plateau point differs by speaker and corpus.
 
+Exact operational definitions and falsification criteria are in `HYPOTHESES_AND_STOPPING_RULE_V1.md`.
+
 ## Stopping rule
 
-Do not consume compute solely to hit 500k. Stop the canonical scaling run when two successive major milestone comparisons fail to show a meaningful perceptual improvement, or if training becomes unstable.
+Do not consume compute solely to hit 500k. Use the predeclared practical-improvement thresholds and stop when two successive formal milestone intervals are classified as showing no meaningful gain, or if training/integrity becomes unstable.
 
 Only after the primary run reaches that stopping rule, and only if allocated compute remains, begin the second-speaker replication. The replication is bounded to the same research question and does not expand into unrelated architecture or product work.
 
@@ -73,7 +91,8 @@ The purpose is external validity: determine whether the primary result is speake
 
 - training/evaluation controller code
 - deterministic blind-evaluation app
-- evaluation schema and rubrics
+- versioned evaluation schema and rubrics
+- machine-readable fixed protocol
 - milestone metadata and aggregate results
 - plots/tables of update count versus perceptual outcome
 - technical report documenting where continued training stopped paying off
