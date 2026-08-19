@@ -1,0 +1,97 @@
+{
+  "protocol_version": "matcha-scaling-v1",
+  "status": "freeze-candidate",
+  "primary_prompt_count": 20,
+  "diagnostic_prompt_count": 4,
+  "preference_allows_tie": true,
+  "artifact_scope_options": ["none", "broad_texture", "local_event", "both"],
+  "prompts": [
+    {"id":"S01","category":"short_neutral","analysis":"primary","text":"The small lamp beside the window is still on."},
+    {"id":"S02","category":"short_neutral","analysis":"primary","text":"I left the blue folder on the kitchen table."},
+    {"id":"S03","category":"short_neutral","analysis":"primary","text":"Tomorrow should be warmer than today."},
+    {"id":"S04","category":"short_neutral","analysis":"primary","text":"Please close the door before you leave."},
+    {"id":"P01","category":"phrase_boundaries","analysis":"primary","text":"After the rain stopped, the street grew quiet, and the clouds began to break."},
+    {"id":"P02","category":"phrase_boundaries","analysis":"primary","text":"If you have a minute, check the numbers again, then send me the final note."},
+    {"id":"P03","category":"phrase_boundaries","analysis":"primary","text":"The package arrived early, but the label was torn, so we opened it carefully."},
+    {"id":"P04","category":"phrase_boundaries","analysis":"primary","text":"At the end of the hallway, beyond the glass doors, a narrow staircase leads upstairs."},
+    {"id":"L01","category":"long_form","analysis":"primary","text":"By the time the train reached the coast, most of the passengers had stopped talking, and the only sounds in the carriage were the wheels, the ventilation system, and an occasional page turning."},
+    {"id":"L02","category":"long_form","analysis":"primary","text":"The experiment seemed simple at first, but once we repeated it under the same conditions, small differences appeared in the timing, the rhythm, and the way each sentence ended."},
+    {"id":"L03","category":"long_form","analysis":"primary","text":"Although the forecast had promised clear skies, a thin layer of cloud remained over the city until late afternoon, when the sunlight finally reached the buildings along the river."},
+    {"id":"L04","category":"long_form","analysis":"primary","text":"When people compare two nearly identical recordings, they often notice broad differences immediately, while smaller pronunciation errors or unstable phrase boundaries become obvious only after repeated listening."},
+    {"id":"D01","category":"articulation","analysis":"primary","text":"The sixth street shuttle stopped beside three freshly painted shops."},
+    {"id":"D02","category":"articulation","analysis":"primary","text":"Bright green glass reflected the crisp spring sunlight."},
+    {"id":"D03","category":"articulation","analysis":"primary","text":"She carefully measured the rural road's irregular width."},
+    {"id":"D04","category":"articulation","analysis":"primary","text":"Freshly brewed coffee cooled quickly beside the copper kettle."},
+    {"id":"E01","category":"sentence_endings","analysis":"primary","text":"That is the result we expected."},
+    {"id":"E02","category":"sentence_endings","analysis":"primary","text":"I thought the meeting would last longer, but it didn't."},
+    {"id":"E03","category":"sentence_endings","analysis":"primary","text":"The final value should remain unchanged."},
+    {"id":"E04","category":"sentence_endings","analysis":"primary","text":"No one noticed the difference until the recording ended."},
+    {"id":"X01","category":"frontend_diagnostic","analysis":"diagnostic","text":"Flight 407 leaves at 6:45 a.m."},
+    {"id":"X02","category":"frontend_diagnostic","analysis":"diagnostic","text":"Version 3.2 fixed the issue on the second attempt."},
+    {"id":"X03","category":"frontend_diagnostic","analysis":"diagnostic","text":"Dr. Rivera reviewed the MRI results before noon."},
+    {"id":"X04","category":"frontend_diagnostic","analysis":"diagnostic","text":"The file contains 47 samples and 3 missing entries."}
+  ],
+  "rating_dimensions": [
+    {
+      "key":"overall",
+      "label":"Overall quality",
+      "direction":"higher_better",
+      "role":"primary",
+      "anchors":{"1":"unusable or strongly synthetic; major defects dominate","2":"poor; clearly synthetic with frequent distracting defects","3":"acceptable/intelligible but obviously synthetic","4":"good; mostly natural with minor noticeable defects","5":"excellent; very natural with only negligible defects"}
+    },
+    {
+      "key":"naturalness",
+      "label":"Naturalness",
+      "direction":"higher_better",
+      "role":"secondary",
+      "anchors":{"1":"highly unnatural","2":"clearly unnatural","3":"mixed / synthetic but plausible","4":"mostly natural","5":"convincingly natural"}
+    },
+    {
+      "key":"artifact_severity",
+      "label":"Artifact Severity",
+      "direction":"lower_better",
+      "role":"primary",
+      "anchors":{"1":"no audible artifact","2":"faint artifact, easy to ignore","3":"clearly audible but not dominant","4":"strong and distracting","5":"severe; artifact substantially damages the clip"}
+    },
+    {
+      "key":"intelligibility",
+      "label":"Intelligibility",
+      "direction":"higher_better",
+      "role":"secondary",
+      "anchors":{"1":"substantial content cannot be understood","2":"several words or phrases unclear","3":"mostly understandable with some uncertainty","4":"essentially all content clear","5":"every word immediately clear"}
+    },
+    {
+      "key":"rhythm",
+      "label":"Rhythm",
+      "direction":"higher_better",
+      "role":"secondary",
+      "anchors":{"1":"severely unnatural timing/stress","2":"frequent timing or stress problems","3":"noticeable but tolerable timing issues","4":"mostly natural rhythm","5":"natural timing and stress throughout"}
+    },
+    {
+      "key":"phrase_stability",
+      "label":"Phrase Stability",
+      "direction":"higher_better",
+      "role":"secondary",
+      "anchors":{"1":"frequent jumps, collapses, or unstable transitions","2":"multiple obvious phrase-level instabilities","3":"occasional instability","4":"stable except for minor events","5":"stable across all phrase boundaries"}
+    },
+    {
+      "key":"ending_quality",
+      "label":"Ending Quality",
+      "direction":"higher_better",
+      "role":"secondary",
+      "anchors":{"1":"obvious cutoff, collapse, or strongly unnatural ending","2":"clearly flawed ending","3":"acceptable but noticeably synthetic ending","4":"mostly natural ending","5":"clean and natural terminal cadence"}
+    },
+    {
+      "key":"speaker_consistency",
+      "label":"Speaker Consistency",
+      "direction":"higher_better",
+      "role":"secondary",
+      "anchors":{"1":"strong identity/timbre drift","2":"repeated noticeable drift","3":"some inconsistency","4":"mostly stable voice identity","5":"stable identity/timbre throughout"}
+    }
+  ],
+  "decision_thresholds": {
+    "practical_score_change": 0.20,
+    "later_preference_non_ties": 0.55,
+    "stop_after_successive_no_gain_intervals": 2
+  }
+}
