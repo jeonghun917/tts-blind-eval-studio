@@ -2,21 +2,26 @@
 
 A tiny CPU-only listening tool for **blind comparison of text-to-speech candidates**.
 
-It is intentionally model-agnostic: no model weights, private datasets, API keys, or GPU are required. Upload a blind-evaluation package, score candidates under randomized A/B/C labels, then export the ratings and reveal the key only after scoring.
+It is intentionally model-agnostic at the model/runtime level: no model weights, private datasets, API keys, or GPU are required. The formal evaluator itself is locked to a versioned research protocol so prompt text, rubric dimensions, and rating anchors cannot silently drift between milestone evaluations.
 
 ## Current app status
 
-The current `app.py` is a **v2 alpha** implementing the first hardening step from the formal evaluator specification: one-ZIP input with internal WAV filenames kept out of the listener-visible interface before reveal.
+The current `app.py` is a **v2 alpha** implementing the first two hardening steps from the formal evaluator specification:
+
+1. one-ZIP input with internal WAV filenames kept out of the listener-visible interface before reveal;
+2. loading and enforcing the bundled `protocols/matcha_scaling_v1.json` prompt set and rating rubric.
 
 The ZIP parser validates path safety, rejects unsupported files and duplicate item/candidate pairs, requires at least two candidates per item, enforces consistent candidate membership across items, and parses audio in memory rather than extracting it to a public/static directory.
 
-Protocol-locked rubrics, completion gating, clean long-format exports, bootstrap analysis, plots, and stopping-rule reporting remain planned v2 work.
+The evaluator displays the frozen protocol version, prompt text/category, and all protocol-defined rating dimensions and anchors. Unknown prompt IDs are rejected instead of being silently accepted.
+
+Artifact-scope/tie controls, completion gating, session metadata, clean long-format exports, prompt-order randomization, bootstrap analysis, plots, and stopping-rule reporting remain planned v2 work.
 
 See [`docs/BLIND_EVAL_STUDIO_V2_SPEC.md`](docs/BLIND_EVAL_STUDIO_V2_SPEC.md).
 
 ## Why
 
-TTS development often relies on subjective listening tests, but model/checkpoint names can bias the result. This tool makes a small, reproducible blind-evaluation loop easy to run inside a Lightning Studio or any other Python environment.
+TTS development often relies on subjective listening tests, but model/checkpoint names can bias the result and evaluation rubrics can drift over time. This tool makes a small, reproducible blind-evaluation loop easy to run in a CPU environment while keeping both candidate identity and the scoring protocol controlled.
 
 ## v2-alpha input convention
 
@@ -35,7 +40,7 @@ S02__candidate_a.wav
 S02__candidate_b.wav
 ```
 
-Files with the same `ITEM` are grouped into one trial. Candidate names are mapped to A/B/C... labels using a deterministic seed after upload. Internal WAV filenames are not rendered to the listener before reveal.
+`ITEM` must match a prompt ID in the bundled frozen protocol. Files with the same item are grouped into one trial. Candidate names are mapped to A/B/C... labels using a deterministic seed after upload. Internal WAV filenames are not rendered to the listener before reveal.
 
 Optional metadata JSON may be included only as `metadata.json` or `candidate_metadata.json`; it is parsed internally and is not displayed during blind scoring.
 
@@ -44,13 +49,16 @@ Optional metadata JSON may be included only as `metadata.json` or `candidate_met
 - single-ZIP package input to avoid Streamlit direct-WAV filename leakage
 - in-memory ZIP parsing with path-safety validation
 - duplicate and candidate-membership validation
+- versioned protocol loader with structural validation
+- frozen prompt IDs, text, category, and primary/diagnostic membership
+- frozen protocol-defined 1–5 rating dimensions and anchors
+- rejection of item IDs outside the formal protocol
 - deterministic candidate randomization from a user-provided seed
-- any number of trials, 2–26 candidates per trial
+- any number of packaged trials, 2–26 candidates per trial
 - in-browser WAV playback
-- overall / naturalness / artifact-severity ratings
 - per-candidate notes
 - preferred-candidate choice per trial
-- CSV export of blind ratings
+- blind CSV export using protocol rating keys
 - explicit post-scoring key reveal and JSON export
 - CPU-only, no external service calls
 
