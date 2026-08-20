@@ -6,16 +6,20 @@ It is intentionally model-agnostic at the model/runtime level: no model weights,
 
 ## Current app status
 
-The current `app.py` is a **v2 alpha** implementing the first two hardening steps from the formal evaluator specification:
+The current `app.py` is a **v2 alpha** implementing the core pre-analysis hardening path from the formal evaluator specification:
 
 1. one-ZIP input with internal WAV filenames kept out of the listener-visible interface before reveal;
-2. loading and enforcing the bundled `protocols/matcha_scaling_v1.json` prompt set and rating rubric.
+2. loading and enforcing the bundled `protocols/matcha_scaling_v1.json` prompt set and rating rubric;
+3. protocol-defined artifact-scope scoring plus explicit tie / no-preference choices;
+4. deliberate non-default scoring, completion checks, explicit incomplete-session export, blind long-format CSV, and separate session metadata/reveal-key exports.
 
 The ZIP parser validates path safety, rejects unsupported files and duplicate item/candidate pairs, requires at least two candidates per item, enforces consistent candidate membership across items, and parses audio in memory rather than extracting it to a public/static directory.
 
-The evaluator displays the frozen protocol version, prompt text/category, and all protocol-defined rating dimensions and anchors. Unknown prompt IDs are rejected instead of being silently accepted.
+The evaluator displays the protocol version/status, prompt text/category, and all protocol-defined rating dimensions and anchors. Unknown prompt IDs are rejected instead of being silently accepted. Rating fields and preferences start unselected so a default UI value cannot silently count as a completed score.
 
-Artifact-scope/tie controls, completion gating, session metadata, clean long-format exports, prompt-order randomization, bootstrap analysis, plots, and stopping-rule reporting remain planned v2 work.
+The app also warns when the bundled protocol is not yet marked `frozen`; a `freeze-candidate` protocol should not be treated as a formal milestone evaluation.
+
+Prompt-order randomization, post-reveal analysis/bootstrap summaries, plots, stopping-rule reporting, and synthetic-fixture tests remain planned v2 work.
 
 See [`docs/BLIND_EVAL_STUDIO_V2_SPEC.md`](docs/BLIND_EVAL_STUDIO_V2_SPEC.md).
 
@@ -40,7 +44,7 @@ S02__candidate_a.wav
 S02__candidate_b.wav
 ```
 
-`ITEM` must match a prompt ID in the bundled frozen protocol. Files with the same item are grouped into one trial. Candidate names are mapped to A/B/C... labels using a deterministic seed after upload. Internal WAV filenames are not rendered to the listener before reveal.
+`ITEM` must match a prompt ID in the bundled versioned protocol. Files with the same item are grouped into one trial. Candidate names are mapped to A/B/C... labels using a deterministic seed after upload. Internal WAV filenames are not rendered to the listener before reveal.
 
 Optional metadata JSON may be included only as `metadata.json` or `candidate_metadata.json`; it is parsed internally and is not displayed during blind scoring.
 
@@ -50,16 +54,21 @@ Optional metadata JSON may be included only as `metadata.json` or `candidate_met
 - in-memory ZIP parsing with path-safety validation
 - duplicate and candidate-membership validation
 - versioned protocol loader with structural validation
-- frozen prompt IDs, text, category, and primary/diagnostic membership
-- frozen protocol-defined 1–5 rating dimensions and anchors
-- rejection of item IDs outside the formal protocol
+- versioned prompt IDs, text, category, and primary/diagnostic membership
+- protocol-defined 1–5 rating dimensions and anchors
+- artifact-scope labels from the protocol
+- explicit tie / no-meaningful-preference support
+- deliberate unselected scoring controls rather than prefilled rating defaults
+- rejection of item IDs outside the research protocol
 - deterministic candidate randomization from a user-provided seed
-- any number of packaged trials, 2–26 candidates per trial
+- session token tied to package bytes + blind seed so changed packages/seeds do not reuse score-widget state
 - in-browser WAV playback
 - per-candidate notes
-- preferred-candidate choice per trial
-- blind CSV export using protocol rating keys
-- explicit post-scoring key reveal and JSON export
+- required-primary-prompt and loaded-trial completion checks
+- explicit `INCOMPLETE` export path rather than silently treating partial sessions as primary evidence
+- long-format `blind_ratings.csv` with study/protocol/evaluator metadata and no candidate identity
+- separate `session_metadata.json` with seed hash and completion diagnostics
+- explicit post-scoring reveal and separate `reveal_key.json`
 - CPU-only, no external service calls
 
 ## Run locally
@@ -81,7 +90,7 @@ This repository contains the public methodology for a long-run Matcha-TTS percep
 - [`docs/ANALYSIS_PLAN_V1.md`](docs/ANALYSIS_PLAN_V1.md) — paired bootstrap, effect sizes, preference analysis, plots
 - [`docs/BLIND_EVAL_STUDIO_V2_SPEC.md`](docs/BLIND_EVAL_STUDIO_V2_SPEC.md) — formal evaluator implementation specification
 - [`docs/PUBLIC_DATA_DELIVERABLES.md`](docs/PUBLIC_DATA_DELIVERABLES.md) — machine-readable raw/derived data schemas and release boundary
-- [`protocols/matcha_scaling_v1.json`](protocols/matcha_scaling_v1.json) — machine-readable frozen-protocol candidate
+- [`protocols/matcha_scaling_v1.json`](protocols/matcha_scaling_v1.json) — machine-readable protocol freeze candidate
 - [`docs/COMPUTE_BUDGET.md`](docs/COMPUTE_BUDGET.md) — provider-neutral GPU-hour plan based on measured segment throughput
 - [`docs/WRITEUP.md`](docs/WRITEUP.md)
 
@@ -91,7 +100,7 @@ The project is intended to publish enough derived evidence to independently re-r
 
 Planned machine-readable outputs include prompt-level ratings, pairwise preferences including ties, artifact-scope labels, checkpoint metadata, prompt-paired differences, bootstrap summaries, and a provider-agnostic compute ledger. Analysis code will regenerate the primary plots, intervals, effect sizes, and stopping decision from those released tables.
 
-The fixed protocol and data schemas are defined before the formal high-update evaluations to reduce cherry-picking risk.
+The protocol and data schemas are intended to be frozen before the formal high-update evaluations to reduce cherry-picking risk.
 
 Source speaker audio, private dataset manifests/paths, credentials, and speaker-specific model weights are outside the public release when redistribution is not permitted.
 
