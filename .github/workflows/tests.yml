@@ -21,3 +21,25 @@ jobs:
         run: python -m py_compile app.py
       - name: Run stdlib fixture tests
         run: python -m unittest discover -s tests -v
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Headless Streamlit smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          streamlit run app.py \
+            --server.headless true \
+            --server.address 127.0.0.1 \
+            --server.port 8501 \
+            > /tmp/tts-blind-streamlit.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8501/_stcore/health >/tmp/health.txt; then
+              grep -qi 'ok' /tmp/health.txt
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/tts-blind-streamlit.log
+          exit 1
