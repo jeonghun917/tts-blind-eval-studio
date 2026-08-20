@@ -1,0 +1,51 @@
+{
+  "schema": "c3-diagnostic-blind-summary-v1",
+  "session_id": "D01_DIAG_20260820_V1",
+  "recorded_kst": "2026-08-21T01:02:00+09:00",
+  "status": "descriptive_diagnostic_not_formal_milestone",
+  "evaluator_count": 1,
+  "prompt_id": "D01",
+  "prompt_text": "The sixth street shuttle stopped beside three freshly painted shops.",
+  "severity_scale_note": "Evaluator used fractional values within the prior 0-3 verbal scale; lower is better.",
+  "checkpoint_summary": {
+    "E200": {
+      "n": 5,
+      "mean_severity": 1.35,
+      "median_severity": 1.25,
+      "scope_counts": {"local": 1, "most": 1, "all": 3}
+    },
+    "E280": {
+      "n": 5,
+      "mean_severity": 1.25,
+      "median_severity": 1.0,
+      "scope_counts": {"local": 2, "most": 1, "all": 2}
+    }
+  },
+  "paired_by_seed": [
+    {"seed": 1004, "E200": 1.25, "E280": 2.0, "E280_minus_E200": 0.75},
+    {"seed": 2004, "E200": 1.0, "E280": 1.0, "E280_minus_E200": 0.0},
+    {"seed": 3004, "E200": 1.0, "E280": 1.0, "E280_minus_E200": 0.0},
+    {"seed": 4004, "E200": 1.5, "E280": 1.0, "E280_minus_E200": -0.5},
+    {"seed": 5004, "E200": 2.0, "E280": 1.25, "E280_minus_E200": -0.75}
+  ],
+  "paired_mean_E280_minus_E200": -0.10,
+  "paired_direction_counts": {
+    "E280_better_lower_severity": 2,
+    "same": 2,
+    "E280_worse_higher_severity": 1
+  },
+  "objective_metric_alignment": {
+    "pearson_severity_vs_hf_energy_ratio_gt6khz_active_mean": -0.0759,
+    "spearman_severity_vs_hf_energy_ratio_gt6khz_active_mean": -0.0781,
+    "pearson_severity_vs_centroid_gt4khz_active_fraction": 0.1127,
+    "spearman_severity_vs_centroid_gt4khz_active_fraction": 0.1562,
+    "guardrail": "n=10, one prompt, one evaluator. These correlations are descriptive only."
+  },
+  "interpretation": [
+    "This blind diagnostic does not support a systematic E280 regression on D01 relative to E200.",
+    "D01 remains a stress case at both checkpoints because all ten samples received non-zero artifact severity.",
+    "Seed 1004 is a localized E280 failure candidate: its E280 severity was 2.0 versus 1.25 at E200, while other seeds were unchanged or improved.",
+    "The earlier ad-hoc description of E280 seed 1004 as severe over most of the utterance was not reproduced exactly in the blind rerating, where the same seed was rated severity 2.0 with local scope. This is retained as within-evaluator context sensitivity rather than silently reconciled.",
+    "The simple high-frequency spectral metrics used here did not track perceived artifact severity well in this tiny sample."
+  ]
+}
