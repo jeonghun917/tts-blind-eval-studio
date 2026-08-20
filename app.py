@@ -8,16 +8,18 @@ import random
 import re
 import zipfile
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 import streamlit as st
 
 
-APP_VERSION = "2.0.0-alpha.2"
+APP_VERSION = "2.0.0-alpha.3"
 LABELS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 GROUP_RE = re.compile(r"^(?P<item>.+?)__(?P<candidate>.+)\.wav$", re.IGNORECASE)
 ALLOWED_METADATA_NAMES = {"metadata.json", "candidate_metadata.json"}
 PROTOCOL_PATH = Path(__file__).resolve().parent / "protocols" / "matcha_scaling_v1.json"
+TIE_OPTION = "Tie / no meaningful preference"
 
 st.set_page_config(page_title="TTS Blind Eval Studio", page_icon="🎧", layout="wide")
 
@@ -25,6 +27,10 @@ st.set_page_config(page_title="TTS Blind Eval Studio", page_icon="🎧", layout=
 def _stable_seed(seed_text: str) -> int:
     digest = hashlib.sha256(seed_text.encode("utf-8")).digest()
     return int.from_bytes(digest[:8], "big")
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _safe_member_path(name: str) -> bool:
@@ -59,6 +65,9 @@ def _load_protocol() -> dict:
     dimension_keys = [row.get("key") for row in protocol["rating_dimensions"]]
     if not dimension_keys or any(not value for value in dimension_keys) or len(dimension_keys) != len(set(dimension_keys)):
         raise RuntimeError("The bundled research protocol has invalid or duplicate rating dimensions.")
+
+    if not protocol["artifact_scope_options"]:
+        raise RuntimeError("The bundled research protocol has no artifact-scope options.")
 
     return protocol
 
@@ -183,7 +192,7 @@ def _validate_protocol_items(grouped: dict, prompt_by_id: dict) -> list[str]:
     unknown = [item for item in grouped if item not in prompt_by_id]
     if unknown:
         return [
-            "The ZIP package contains item IDs that are not defined by the frozen protocol. "
+            "The ZIP package contains item IDs that are not defined by the versioned protocol. "
             f"Unknown item count: {len(unknown)}."
         ]
     return []
@@ -214,13 +223,18 @@ def _anchor_help(dimension: dict) -> str:
 def _results_csv(rows, rating_dimensions):
     buf = io.StringIO()
     fields = [
-        "item",
+        "study_id",
+        "protocol_version",
+        "evaluator_id",
+        "item_id",
         "category",
         "primary_or_diagnostic",
         "blind_label",
         *[dimension["key"] for dimension in rating_dimensions],
+        "artifact_scope",
         "notes",
         "preferred",
+        "tie",
     ]
     writer = csv.DictWriter(buf, fieldnames=fields)
     writer.writeheader()
@@ -228,12 +242,49 @@ def _results_csv(rows, rating_dimensions):
     return buf.getvalue().encode("utf-8")
 
 
+def _session_metadata_json(
+    *,
+    study_id: str,
+    evaluator_id: str,
+    protocol: dict,
+    seed_text: str,
+    session_note: str,
+    session_started_at: str,
+    item_ids: list[str],
+    candidate_count: int,
+    completion_status: str,
+    missing_primary_count: int,
+    incomplete_score_rows: int,
+    missing_preference_count: int,
+):
+    payload = {
+        "schema": "tts-blind-eval-session-v2-alpha",
+        "app_version": APP_VERSION,
+        "study_id": study_id,
+        "evaluator_id": evaluator_id,
+        "protocol_version": protocol["protocol_version"],
+        "protocol_status": protocol["status"],
+        "blind_seed_sha256": _sha256_text(seed_text),
+        "session_started_at_utc": session_started_at,
+        "exported_at_utc": datetime.now(timezone.utc).isoformat(),
+        "session_note": session_note,
+        "item_ids": item_ids,
+        "item_count": len(item_ids),
+        "candidate_count_per_item": candidate_count,
+        "completion_status": completion_status,
+        "missing_primary_prompt_count": missing_primary_count,
+        "incomplete_score_row_count": incomplete_score_rows,
+        "missing_preference_count": missing_preference_count,
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
+
 def _key_json(mapping, seed_text: str, protocol_version: str):
     payload = {
         "schema": "tts-blind-eval-key-v2-alpha",
         "app_version": APP_VERSION,
         "protocol_version": protocol_version,
-        "seed": seed_text,
+        "blind_seed_sha256": _sha256_text(seed_text),
         "items": {
             item: {
                 row["blind_label"]: {
@@ -256,6 +307,9 @@ except RuntimeError as exc:
 
 prompt_by_id = {row["id"]: row for row in protocol["prompts"]}
 rating_dimensions = protocol["rating_dimensions"]
+primary_prompt_ids = {
+    row["id"] for row in protocol["prompts"] if row.get("analysis") == "primary"
+}
 
 st.title("TTS Blind Eval Studio")
 st.caption(
@@ -265,16 +319,25 @@ st.caption(
 st.caption(
     f"Protocol: {protocol['protocol_version']} · status: {protocol['status']} · app: {APP_VERSION}"
 )
+if protocol["status"] != "frozen":
+    st.warning(
+        "This protocol is not marked `frozen`. Do not treat a session as a formal milestone "
+        "evaluation until the protocol status is deliberately frozen."
+    )
 
 with st.expander("Frozen rating anchors"):
     for dimension in rating_dimensions:
         st.markdown(f"**{dimension['label']}** — {_anchor_help(dimension)}")
 
+study_id = st.text_input("Study ID", value="matcha-scaling-primary")
+evaluator_id = st.text_input("Evaluator ID / alias", value="listener-01")
+session_note = st.text_input("Session note (optional)", value="")
+
 with st.expander("Input format", expanded=True):
     st.markdown(
         "Upload **one ZIP file** containing WAVs named `ITEM__CANDIDATE.wav`, for example "
         "`S01__candidate_a.wav` and `S01__candidate_b.wav`. "
-        "ITEM must be a prompt ID from the frozen protocol. Internal WAV filenames are parsed "
+        "ITEM must be a prompt ID from the versioned protocol. Internal WAV filenames are parsed "
         "in memory and are not rendered before reveal."
     )
 
@@ -285,11 +348,16 @@ archive_file = st.file_uploader(
     accept_multiple_files=False,
 )
 
+if not study_id.strip() or not evaluator_id.strip():
+    st.info("Enter a Study ID and Evaluator ID before scoring.")
+    st.stop()
+
 if not archive_file:
     st.info("Upload one ZIP package containing at least two candidates per item.")
     st.stop()
 
-grouped, _metadata, package_errors = _parse_zip(archive_file.getvalue())
+archive_bytes = archive_file.getvalue()
+grouped, _metadata, package_errors = _parse_zip(archive_bytes)
 if not package_errors:
     package_errors = _validate_protocol_items(grouped, prompt_by_id)
 if package_errors:
@@ -298,6 +366,11 @@ if package_errors:
     st.stop()
 
 mapping = _build_mapping(grouped, seed_text)
+session_token = hashlib.sha256(archive_bytes + seed_text.encode("utf-8")).hexdigest()[:16]
+session_started_key = f"session_started::{session_token}"
+if session_started_key not in st.session_state:
+    st.session_state[session_started_key] = datetime.now(timezone.utc).isoformat()
+session_started_at = st.session_state[session_started_key]
 
 st.success(
     f"Loaded {len(mapping)} protocol item(s), "
@@ -305,6 +378,7 @@ st.success(
 )
 
 results = []
+preferences = {}
 for item, rows in mapping.items():
     prompt = prompt_by_id[item]
     st.divider()
@@ -312,12 +386,18 @@ for item, rows in mapping.items():
     st.write(prompt["text"])
     st.caption(f"Analysis set: {prompt['analysis']}")
 
-    preferred = st.radio(
+    preference_options = [row["blind_label"] for row in rows]
+    if protocol["preference_allows_tie"]:
+        preference_options.append(TIE_OPTION)
+    preference = st.radio(
         "Preferred candidate",
-        options=[row["blind_label"] for row in rows],
+        options=preference_options,
+        index=None,
         horizontal=True,
-        key=f"preferred::{item}",
+        key=f"{session_token}::preferred::{item}",
     )
+    preferences[item] = preference
+
     cols = st.columns(min(3, len(rows)))
     for idx, row in enumerate(rows):
         with cols[idx % len(cols)]:
@@ -327,53 +407,127 @@ for item, rows in mapping.items():
 
             scores = {}
             for dimension in rating_dimensions:
-                scores[dimension["key"]] = st.slider(
+                scores[dimension["key"]] = st.selectbox(
                     dimension["label"],
-                    1,
-                    5,
-                    3,
+                    options=[1, 2, 3, 4, 5],
+                    index=None,
+                    placeholder="Choose 1–5",
                     help=_anchor_help(dimension),
-                    key=f"{dimension['key']}::{item}::{label}",
+                    key=f"{session_token}::{dimension['key']}::{item}::{label}",
                 )
 
-            notes = st.text_area("Notes", key=f"notes::{item}::{label}")
+            artifact_scope = st.selectbox(
+                "Artifact Scope",
+                options=protocol["artifact_scope_options"],
+                index=None,
+                placeholder="Choose artifact scope",
+                key=f"{session_token}::artifact_scope::{item}::{label}",
+            )
+            notes = st.text_area(
+                "Notes",
+                key=f"{session_token}::notes::{item}::{label}",
+            )
             results.append(
                 {
-                    "item": item,
+                    "study_id": study_id.strip(),
+                    "protocol_version": protocol["protocol_version"],
+                    "evaluator_id": evaluator_id.strip(),
+                    "item_id": item,
                     "category": prompt["category"],
                     "primary_or_diagnostic": prompt["analysis"],
                     "blind_label": label,
                     **scores,
+                    "artifact_scope": artifact_scope,
                     "notes": notes,
-                    "preferred": label == preferred,
+                    "preferred": preference == label,
+                    "tie": preference == TIE_OPTION,
                 }
             )
 
+loaded_item_ids = set(mapping)
+missing_primary = primary_prompt_ids - loaded_item_ids
+incomplete_rows = [
+    row
+    for row in results
+    if any(row[dimension["key"]] is None for dimension in rating_dimensions)
+    or row["artifact_scope"] is None
+]
+missing_preferences = [item for item, value in preferences.items() if value is None]
+complete = not missing_primary and not incomplete_rows and not missing_preferences
+completion_status = "complete" if complete else "incomplete"
+
 st.divider()
-st.subheader("Export")
-st.download_button(
-    "Download blind ratings CSV",
-    data=_results_csv(results, rating_dimensions),
-    file_name="tts_blind_eval_results.csv",
-    mime="text/csv",
-    use_container_width=True,
-)
+st.subheader("Completion and export")
+if complete:
+    st.success("All required primary prompts and loaded trials are fully scored.")
+else:
+    st.warning(
+        "Session is incomplete: "
+        f"{len(missing_primary)} required primary prompt(s) missing, "
+        f"{len(incomplete_rows)} candidate row(s) missing required scores, "
+        f"{len(missing_preferences)} loaded prompt(s) missing preference/tie."
+    )
+
+explicit_incomplete_export = False
+if not complete:
+    explicit_incomplete_export = st.checkbox(
+        "Export this session explicitly as INCOMPLETE",
+        key=f"{session_token}::allow_incomplete_export",
+    )
+export_allowed = complete or explicit_incomplete_export
+
+if export_allowed:
+    st.download_button(
+        "Download blind ratings CSV",
+        data=_results_csv(results, rating_dimensions),
+        file_name="blind_ratings.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+    st.download_button(
+        "Download session metadata JSON",
+        data=_session_metadata_json(
+            study_id=study_id.strip(),
+            evaluator_id=evaluator_id.strip(),
+            protocol=protocol,
+            seed_text=seed_text,
+            session_note=session_note,
+            session_started_at=session_started_at,
+            item_ids=list(mapping.keys()),
+            candidate_count=len(next(iter(mapping.values()))),
+            completion_status=completion_status,
+            missing_primary_count=len(missing_primary),
+            incomplete_score_rows=len(incomplete_rows),
+            missing_preference_count=len(missing_preferences),
+        ),
+        file_name="session_metadata.json",
+        mime="application/json",
+        use_container_width=True,
+    )
+else:
+    st.info("Complete the required fields, or explicitly export an incomplete session, before reveal.")
 
 with st.expander("Reveal / export blind key"):
-    st.warning("Open this only after scoring if you want to preserve the blind evaluation.")
-    if st.checkbox("I have finished scoring and want to reveal the mapping"):
-        revealed = {
-            item: {row["blind_label"]: row["candidate"] for row in rows}
-            for item, rows in mapping.items()
-        }
-        st.json(revealed)
-        st.download_button(
-            "Download blind key JSON",
-            data=_key_json(mapping, seed_text, protocol["protocol_version"]),
-            file_name="tts_blind_eval_key.json",
-            mime="application/json",
-            use_container_width=True,
-        )
+    if not export_allowed:
+        st.info("Reveal is locked until the session is complete or explicitly marked incomplete for export.")
+    else:
+        st.warning("Reveal candidate identity only after finishing the intended blind scoring session.")
+        if st.checkbox(
+            "I have finished scoring and want to reveal candidate identities",
+            key=f"{session_token}::reveal_confirm",
+        ):
+            revealed = {
+                item: {row["blind_label"]: row["candidate"] for row in rows}
+                for item, rows in mapping.items()
+            }
+            st.json(revealed)
+            st.download_button(
+                "Download reveal key JSON",
+                data=_key_json(mapping, seed_text, protocol["protocol_version"]),
+                file_name="reveal_key.json",
+                mime="application/json",
+                use_container_width=True,
+            )
 
 st.caption(
     f"App {APP_VERSION}. CPU-only; no model checkpoint, dataset, API key, "
