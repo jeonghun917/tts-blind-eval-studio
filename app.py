@@ -6,15 +6,19 @@ import io
 import json
 import random
 import re
+import zipfile
 from collections import defaultdict
+from pathlib import PurePosixPath
 
 import streamlit as st
 
 
-st.set_page_config(page_title="TTS Blind Eval Studio", page_icon="🎧", layout="wide")
-
+APP_VERSION = "2.0.0-alpha.1"
 LABELS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 GROUP_RE = re.compile(r"^(?P<item>.+?)__(?P<candidate>.+)\.wav$", re.IGNORECASE)
+ALLOWED_METADATA_NAMES = {"metadata.json", "candidate_metadata.json"}
+
+st.set_page_config(page_title="TTS Blind Eval Studio", page_icon="🎧", layout="wide")
 
 
 def _stable_seed(seed_text: str) -> int:
@@ -22,30 +26,130 @@ def _stable_seed(seed_text: str) -> int:
     return int.from_bytes(digest[:8], "big")
 
 
-def _parse_uploads(files):
+def _safe_member_path(name: str) -> bool:
+    normalized = name.replace("\\", "/")
+    path = PurePosixPath(normalized)
+    if path.is_absolute():
+        return False
+    return bool(path.parts) and all(part not in {"", ".", ".."} for part in path.parts)
+
+
+def _parse_zip(blob: bytes):
     grouped = defaultdict(list)
+    seen_pairs = set()
+    invalid_wav_names = 0
+    metadata_files = {}
     errors = []
-    for f in files:
-        m = GROUP_RE.match(f.name)
-        if not m:
-            errors.append(f.name)
-            continue
-        grouped[m.group("item")].append(
-            {
-                "candidate": m.group("candidate"),
-                "name": f.name,
-                "bytes": f.getvalue(),
-            }
+
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(blob))
+    except (zipfile.BadZipFile, OSError):
+        return {}, {}, ["The uploaded file is not a valid ZIP archive."]
+
+    with archive:
+        members = [info for info in archive.infolist() if not info.is_dir()]
+        if not members:
+            return {}, {}, ["The ZIP archive is empty."]
+
+        seen_member_names = set()
+        for info in members:
+            internal_name = info.filename.replace("\\", "/")
+            if internal_name in seen_member_names:
+                errors.append("The ZIP archive contains duplicate member names.")
+                continue
+            seen_member_names.add(internal_name)
+
+            if not _safe_member_path(internal_name):
+                errors.append("The ZIP archive contains an unsafe path.")
+                continue
+
+            base_name = PurePosixPath(internal_name).name
+            lower_base = base_name.lower()
+
+            if lower_base.endswith(".json"):
+                if lower_base not in ALLOWED_METADATA_NAMES:
+                    errors.append("The ZIP archive contains an unsupported JSON metadata file.")
+                    continue
+                if lower_base in metadata_files:
+                    errors.append("The ZIP archive contains duplicate metadata files.")
+                    continue
+                try:
+                    metadata_files[lower_base] = json.loads(archive.read(info).decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    errors.append("A metadata JSON file is not valid UTF-8 JSON.")
+                continue
+
+            if not lower_base.endswith(".wav"):
+                errors.append("The ZIP archive contains a non-WAV file.")
+                continue
+
+            match = GROUP_RE.match(base_name)
+            if not match:
+                invalid_wav_names += 1
+                continue
+
+            item = match.group("item")
+            candidate = match.group("candidate")
+            pair = (item, candidate)
+            if pair in seen_pairs:
+                errors.append("The ZIP archive contains a duplicate item/candidate pair.")
+                continue
+            seen_pairs.add(pair)
+
+            data = archive.read(info)
+            if not data:
+                errors.append("The ZIP archive contains an empty WAV file.")
+                continue
+
+            grouped[item].append(
+                {
+                    "candidate": candidate,
+                    "name": internal_name,
+                    "bytes": data,
+                }
+            )
+
+    if invalid_wav_names:
+        errors.append(
+            f"{invalid_wav_names} WAV file(s) do not follow the required ITEM__CANDIDATE.wav convention."
         )
-    return dict(sorted(grouped.items())), errors
+
+    if errors:
+        return {}, metadata_files, errors
+
+    grouped = dict(sorted(grouped.items()))
+    if not grouped:
+        return {}, metadata_files, ["The ZIP archive contains no valid WAV candidates."]
+
+    invalid_counts = [item for item, rows in grouped.items() if len(rows) < 2]
+    if invalid_counts:
+        return {}, metadata_files, [
+            "Every item must contain at least two candidates. "
+            f"Invalid item count: {len(invalid_counts)}."
+        ]
+
+    too_many = [item for item, rows in grouped.items() if len(rows) > len(LABELS)]
+    if too_many:
+        return {}, metadata_files, [
+            f"An item exceeds the supported maximum of {len(LABELS)} candidates."
+        ]
+
+    candidate_sets = {item: {row["candidate"] for row in rows} for item, rows in grouped.items()}
+    expected = next(iter(candidate_sets.values()))
+    inconsistent = [item for item, values in candidate_sets.items() if values != expected]
+    if inconsistent:
+        return {}, metadata_files, [
+            "Candidate membership is inconsistent across items. "
+            f"Affected item count: {len(inconsistent)}."
+        ]
+
+    return grouped, metadata_files, []
 
 
 def _build_mapping(grouped, seed_text: str):
     rng = random.Random(_stable_seed(seed_text))
     mapping = {}
     for item, candidates in grouped.items():
-        if len(candidates) > len(LABELS):
-            raise ValueError(f"{item}: too many candidates ({len(candidates)})")
         shuffled = list(candidates)
         rng.shuffle(shuffled)
         mapping[item] = [
@@ -74,7 +178,8 @@ def _results_csv(rows):
 
 def _key_json(mapping, seed_text: str):
     payload = {
-        "schema": "tts-blind-eval-key-v1",
+        "schema": "tts-blind-eval-key-v2-alpha",
+        "app_version": APP_VERSION,
         "seed": seed_text,
         "items": {
             item: {
@@ -91,35 +196,41 @@ def _key_json(mapping, seed_text: str):
 
 
 st.title("TTS Blind Eval Studio")
-st.caption("A small, model-agnostic blind listening tool for comparing TTS candidates without exposing model names during scoring.")
+st.caption(
+    "A small, model-agnostic blind listening tool for comparing TTS candidates "
+    "without exposing internal candidate filenames before scoring."
+)
 
 with st.expander("Input format", expanded=True):
     st.markdown(
-        "Upload WAV files named `ITEM__CANDIDATE.wav`, for example "
-        "`sentence01__baseline.wav`, `sentence01__checkpoint500k.wav`, "
-        "`sentence01__reference.wav`. Files sharing the same ITEM are compared together."
+        "Upload **one ZIP file** containing WAVs named `ITEM__CANDIDATE.wav`, for example "
+        "`S01__candidate_a.wav` and `S01__candidate_b.wav`. "
+        "Internal WAV filenames are parsed in memory and are not rendered before reveal."
     )
 
-seed_text = st.text_input("Blind randomization seed", value="lightning-demo-v1")
-files = st.file_uploader("Upload WAV candidates", type=["wav"], accept_multiple_files=True)
+seed_text = st.text_input("Blind randomization seed", value="matcha-scaling-v1")
+archive_file = st.file_uploader(
+    "Upload one blind-evaluation ZIP package",
+    type=["zip"],
+    accept_multiple_files=False,
+)
 
-if not files:
-    st.info("Upload at least two WAV files to begin.")
+if not archive_file:
+    st.info("Upload one ZIP package containing at least two candidates per item.")
     st.stop()
 
-grouped, bad_names = _parse_uploads(files)
-if bad_names:
-    st.error("These files do not match ITEM__CANDIDATE.wav: " + ", ".join(bad_names))
-    st.stop()
-
-invalid = [item for item, rows in grouped.items() if len(rows) < 2]
-if invalid:
-    st.error("Each item needs at least two candidates: " + ", ".join(invalid))
+grouped, _metadata, package_errors = _parse_zip(archive_file.getvalue())
+if package_errors:
+    for error in package_errors:
+        st.error(error)
     st.stop()
 
 mapping = _build_mapping(grouped, seed_text)
 
-st.success(f"Loaded {len(mapping)} blind comparison item(s), {sum(len(v) for v in mapping.values())} WAV files total.")
+st.success(
+    f"Loaded {len(mapping)} blind comparison item(s), "
+    f"{sum(len(v) for v in mapping.values())} WAV files total."
+)
 
 results = []
 for item, rows in mapping.items():
@@ -185,4 +296,7 @@ with st.expander("Reveal / export blind key"):
             use_container_width=True,
         )
 
-st.caption("The app is model-agnostic and does not require a GPU, model checkpoint, dataset, API key, or external service.")
+st.caption(
+    f"App {APP_VERSION}. CPU-only; no model checkpoint, dataset, API key, "
+    "or external service is required."
+)
