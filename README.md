@@ -11,7 +11,8 @@ The current `app.py` is a **v2 alpha** implementing the core pre-analysis harden
 1. one-ZIP input with internal WAV filenames kept out of the listener-visible interface before reveal;
 2. loading and enforcing the bundled `protocols/matcha_scaling_v1.json` prompt set and rating rubric;
 3. protocol-defined artifact-scope scoring plus explicit tie / no-preference choices;
-4. deliberate non-default scoring, completion checks, explicit incomplete-session export, blind long-format CSV, and separate session metadata/reveal-key exports.
+4. deliberate non-default scoring, completion checks, explicit incomplete-session export, blind long-format CSV, and separate session metadata/reveal-key exports;
+5. independent deterministic randomization of candidate labels and prompt presentation order from the blind seed.
 
 The ZIP parser validates path safety, rejects unsupported files and duplicate item/candidate pairs, requires at least two candidates per item, enforces consistent candidate membership across items, and parses audio in memory rather than extracting it to a public/static directory.
 
@@ -19,7 +20,7 @@ The evaluator displays the protocol version/status, prompt text/category, and al
 
 The app also warns when the bundled protocol is not yet marked `frozen`; a `freeze-candidate` protocol should not be treated as a formal milestone evaluation.
 
-Prompt-order randomization, post-reveal analysis/bootstrap summaries, plots, stopping-rule reporting, and synthetic-fixture tests remain planned v2 work.
+Post-reveal analysis/bootstrap summaries, plots, stopping-rule reporting, and synthetic-fixture tests remain planned v2 work.
 
 See [`docs/BLIND_EVAL_STUDIO_V2_SPEC.md`](docs/BLIND_EVAL_STUDIO_V2_SPEC.md).
 
@@ -60,7 +61,9 @@ Optional metadata JSON may be included only as `metadata.json` or `candidate_met
 - explicit tie / no-meaningful-preference support
 - deliberate unselected scoring controls rather than prefilled rating defaults
 - rejection of item IDs outside the research protocol
-- deterministic candidate randomization from a user-provided seed
+- deterministic per-prompt candidate randomization derived from the blind seed
+- independent deterministic prompt-order randomization derived from the blind seed
+- presentation order recorded in session metadata
 - session token tied to package bytes + blind seed so changed packages/seeds do not reuse score-widget state
 - in-browser WAV playback
 - per-candidate notes
