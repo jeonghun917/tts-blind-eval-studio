@@ -51,6 +51,7 @@ The detailed study design is versioned separately so it can be frozen before for
 - [`HYPOTHESES_AND_STOPPING_RULE_V1.md`](HYPOTHESES_AND_STOPPING_RULE_V1.md)
 - [`ANALYSIS_PLAN_V1.md`](ANALYSIS_PLAN_V1.md)
 - [`BLIND_EVAL_STUDIO_V2_SPEC.md`](BLIND_EVAL_STUDIO_V2_SPEC.md)
+- [`PUBLIC_DATA_DELIVERABLES.md`](PUBLIC_DATA_DELIVERABLES.md)
 - machine-readable protocol: [`../protocols/matcha_scaling_v1.json`](../protocols/matcha_scaling_v1.json)
 
 Once the first formal ~300k evaluation begins, prompt text, rating anchors, endpoint roles, and decision thresholds should not be silently changed.
@@ -81,23 +82,62 @@ If budget remains:
 
 1. Use a separately cleared/licensed speaker corpus.
 2. Reuse the same Matcha-TTS architecture, frontend, optimizer family, milestone logic, checkpoint verification, and blind-evaluation tooling.
-3. Record checkpoint-level optimizer steps and aggregate perceptual outcomes.
+3. Record checkpoint-level optimizer steps and prompt-level perceptual outcomes using the same public data schema.
 4. Compare the direction and approximate shape of the quality-improvement curve with the primary speaker.
-5. Publish aggregate replication findings without redistributing source audio or speaker-specific weights when those materials are not redistributable.
+5. Publish derived replication data and cross-speaker analysis without redistributing source audio or speaker-specific weights when those materials are not redistributable.
 
 The purpose is external validity: determine whether the primary result is speaker-specific or reflects a broader property of long-run Matcha-TTS training.
 
+## Public research data release
+
+The project will release the numerical evidence required to re-run the reported analysis, not only aggregate plots.
+
+Planned machine-readable outputs include:
+
+- `checkpoint_metrics.csv`: verified milestone metadata, optimizer updates, runtime/GPU metadata, and available losses
+- `ratings_long.csv`: prompt × checkpoint × evaluator raw rating rows for the frozen dimensions
+- `preferences.csv`: prompt-level pairwise preferences including explicit ties
+- `artifact_labels.csv`: broad/local artifact-scope labels by prompt and milestone
+- `paired_differences.csv`: raw prompt-paired checkpoint changes
+- `bootstrap_summary.csv`: point estimates, 95% intervals, and effect-size summaries generated from the released rows
+- `compute_ledger.csv`: provider-agnostic GPU-hours, update throughput, retries/interruption markers, and milestone accounting
+- versioned protocol/schema files plus analysis code that regenerates the primary tables, plots, bootstrap intervals, and stopping classification
+
+The detailed schemas and release boundary are frozen in [`PUBLIC_DATA_DELIVERABLES.md`](PUBLIC_DATA_DELIVERABLES.md).
+
+The fixed 20-prompt primary set is the unit of the preregistered aggregate analysis. Prompts will not be removed or replaced after seeing milestone results unless the protocol is versioned and the changed analysis is reported separately. Missing or failed trials will be recorded rather than silently substituted.
+
+## Reproducibility target
+
+An independent reader should be able to use the public repository, without access to the private speaker corpus or model weights, to:
+
+1. verify which milestone/update counts were compared;
+2. inspect the raw prompt-level blinded scores and preferences after reveal;
+3. recompute checkpoint means, paired differences, artifact-scope proportions, and preference rates;
+4. re-run the declared 10,000-iteration paired prompt bootstrap for the one-listener primary analysis;
+5. regenerate the primary plots and tables; and
+6. reproduce the declared stopping-rule classification from the released numerical data.
+
+A small synthetic/demo fixture will be provided so the evaluation-analysis pipeline can be smoke-tested without private audio.
+
 ## Public outputs
 
-- training/evaluation controller code
+- restart-safe training/evaluation controller pattern
 - deterministic blind-evaluation app
 - versioned evaluation schema and rubrics
 - machine-readable fixed protocol
-- milestone metadata and aggregate results
-- plots/tables of update count versus perceptual outcome
+- machine-readable prompt-level ratings, preferences, artifact labels, paired differences, and bootstrap summaries
+- milestone metadata and provider-agnostic compute ledger
+- plots/tables of update count versus perceptual outcome with uncertainty and raw prompt context
+- analysis code sufficient to regenerate the reported numerical results from the released tables
 - technical report documenting where continued training stopped paying off
-- if executed, aggregate second-speaker replication results and cross-speaker comparison
+- dataset-independent reproduction guide
+- if executed, second-speaker derived data and cross-speaker comparison using the same schema
 
 ## Privacy / licensing boundary
 
-The research tooling and aggregate results are intended to be open source. Source speaker audio and speaker-specific model weights are excluded from the public release. Public artifacts must not contain private audio, private checkpoints, secrets, internal identifiers, or licensed material that cannot be redistributed.
+The research tooling, protocol, derived numerical data, and analysis results are intended to be open source. Source speaker audio and speaker-specific model weights are excluded from the public release when redistribution is not permitted.
+
+Public artifacts must not contain private audio, private checkpoints, secrets, private dataset paths/manifests, account identifiers, or licensed material that cannot be redistributed. Neutral study/checkpoint/session identifiers will be used in released numerical tables.
+
+This boundary is designed to preserve licensing and privacy while still exposing enough data to audit the study's statistics, effect sizes, and stopping decision.
