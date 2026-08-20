@@ -1,0 +1,49 @@
+{
+  "schema": "c3-diagnostic-seed-sweep-v1",
+  "session_id": "D01_DIAG_20260820_V1",
+  "date_kst": "2026-08-20",
+  "status": "descriptive_diagnostic_not_formal_milestone",
+  "prompt_id": "D01",
+  "prompt_text": "The sixth street shuttle stopped beside three freshly painted shops.",
+  "comparison": [
+    {
+      "checkpoint": "E200",
+      "epoch_completed": 200,
+      "global_step": 100400,
+      "sha256": "b3235e8bff23c6241119add85e57dccfa1e88ed2cf2ed51bed8a3c305dee5c54"
+    },
+    {
+      "checkpoint": "E280",
+      "epoch_completed": 280,
+      "global_step": 140560,
+      "sha256": "081cf4012a4087f437b8bf2fa0a115da931c5aff26fe22a67acb4f25707cb7a9"
+    }
+  ],
+  "seeds": [1004, 2004, 3004, 4004, 5004],
+  "seed_note": "1004 reproduces the D01 seed used in the earlier E280 five-item descriptive preview.",
+  "vocoder_id": "cori_adapted_bigvgan_20260817T022729Z",
+  "inference": {
+    "n_timesteps": 10,
+    "temperature": 0.667,
+    "length_scale": 1.0,
+    "post_processing": "none"
+  },
+  "compute": {
+    "synthesis": "CPU-only",
+    "gpu_allocated": false
+  },
+  "initial_observation": {
+    "source": "single evaluator ad-hoc listening before seed sweep",
+    "checkpoint": "E280",
+    "seed": 1004,
+    "label": "severe machine-like artifact over most of the utterance",
+    "formal_blind_rating": false
+  },
+  "objective_summary": {
+    "E200_mean_hf_energy_ratio_gt6khz_active": 0.21393420974264066,
+    "E280_mean_hf_energy_ratio_gt6khz_active": 0.20876063653707838,
+    "E200_mean_centroid_gt4khz_active_fraction": 0.3348314288869857,
+    "E280_mean_centroid_gt4khz_active_fraction": 0.3222349198676745
+  },
+  "interpretation_guardrail": "Objective spectral metrics are descriptive and cannot by themselves establish perceptual artifact severity; blind human labels are collected separately."
+}
