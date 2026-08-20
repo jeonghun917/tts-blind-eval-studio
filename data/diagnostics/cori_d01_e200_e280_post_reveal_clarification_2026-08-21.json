@@ -1,0 +1,20 @@
+{
+  "schema": "c3-diagnostic-post-reveal-clarification-v1",
+  "session_id": "D01_DIAG_20260820_V1",
+  "recorded_kst": "2026-08-21T01:13:00+09:00",
+  "status": "post_reveal_descriptive_clarification_not_blind_evidence",
+  "evaluator_count": 1,
+  "clarification": {
+    "scalar_separation": "The original scalar ratings overstated the perceived separation among most samples. Aside from A and G, most samples were broadly similar enough that precise scalar distinctions were difficult to express.",
+    "rough_tier_recollection": "D/E/F/J were recalled as roughly similar within a lower qualitative tier. This recollection was made after reveal and must not be treated as a blinded reranking.",
+    "A_temporal_note": "Beginning was somewhat ambiguous/unnatural despite relatively low overt noise.",
+    "G_temporal_note": "Beginning was comparatively acceptable, with more noticeable noise/artifact toward the end.",
+    "measurement_implication": "Future diagnostics should record temporal location and artifact character in addition to a single global severity score."
+  },
+  "seed_semantics": {
+    "implementation": "torch.manual_seed(seed) is set immediately before Matcha-TTS synthesis. Matcha CFM then samples z = torch.randn_like(mu) * temperature and integrates the probability-flow ODE from that initial noise.",
+    "meaning": "Seed values are arbitrary reproducibility labels for the pseudo-random initial CFM noise; a larger seed number does not mean more noise or worse quality.",
+    "same_checkpoint": "Within a fixed checkpoint and prompt, duration/alignment is deterministic here, so changing the seed primarily changes the CFM decoder's initial noise realization and can move/localize artifacts differently over time.",
+    "cross_checkpoint_caveat": "The same seed is not a perfectly matched latent across E200 and E280 because the checkpoints predict different mel lengths (448 vs 471 frames for D01). Same-seed comparisons are therefore reproducible RNG controls, not frame-identical latent pairs."
+  }
+}
