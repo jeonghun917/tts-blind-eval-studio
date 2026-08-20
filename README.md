@@ -14,7 +14,7 @@ See [`docs/BLIND_EVAL_STUDIO_V2_SPEC.md`](docs/BLIND_EVAL_STUDIO_V2_SPEC.md).
 
 ## Why
 
-TTS development often relies on subjective listening tests, but model/checkpoint names can bias the result. This tool makes a small, reproducible blind-evaluation loop easy to run inside a Lightning Studio.
+TTS development often relies on subjective listening tests, but model/checkpoint names can bias the result. This tool makes a small, reproducible blind-evaluation loop easy to run inside a Lightning Studio or any other Python environment.
 
 ## v1 input convention
 
@@ -49,14 +49,14 @@ Files with the same `ITEM` are grouped into one trial. Candidate names are mappe
 - explicit post-scoring key reveal and JSON export
 - CPU-only, no external service calls
 
-## Run locally or in Lightning Studio
+## Run locally
 
 ```bash
 python -m pip install -r requirements.txt
 streamlit run app.py --server.address 0.0.0.0
 ```
 
-In a Lightning Studio, use a CPU workspace for setup and runtime; this app does not need a paid GPU.
+The evaluation app itself does not need a paid GPU.
 
 ## Research protocol
 
@@ -67,25 +67,34 @@ This repository contains the public methodology for a long-run Matcha-TTS percep
 - [`docs/HYPOTHESES_AND_STOPPING_RULE_V1.md`](docs/HYPOTHESES_AND_STOPPING_RULE_V1.md) — falsifiable hypotheses and predeclared stopping rule
 - [`docs/ANALYSIS_PLAN_V1.md`](docs/ANALYSIS_PLAN_V1.md) — paired bootstrap, effect sizes, preference analysis, plots
 - [`docs/BLIND_EVAL_STUDIO_V2_SPEC.md`](docs/BLIND_EVAL_STUDIO_V2_SPEC.md) — formal evaluator implementation specification
+- [`docs/PUBLIC_DATA_DELIVERABLES.md`](docs/PUBLIC_DATA_DELIVERABLES.md) — machine-readable raw/derived data schemas and release boundary
 - [`protocols/matcha_scaling_v1.json`](protocols/matcha_scaling_v1.json) — machine-readable frozen-protocol candidate
-- [`docs/COMPUTE_BUDGET.md`](docs/COMPUTE_BUDGET.md)
+- [`docs/COMPUTE_BUDGET.md`](docs/COMPUTE_BUDGET.md) — provider-neutral GPU-hour plan based on measured segment throughput
 - [`docs/WRITEUP.md`](docs/WRITEUP.md)
 
-Open-source deliverables are the evaluation tooling, methodology, experiment configuration, and aggregate findings. Source speaker audio and speaker-specific model weights are not part of this public repository.
+## Planned open research outputs
 
-## Publishing to the Lightning Community
+The project is intended to publish enough derived evidence to independently re-run the reported statistics without access to the private speaker corpus or speaker-specific model weights.
 
-Before publishing a Studio, keep it free of private datasets, checkpoints, credentials, or proprietary audio. The public template should contain only this tool and any explicitly redistributable demo material.
+Planned machine-readable outputs include prompt-level ratings, pairwise preferences including ties, artifact-scope labels, checkpoint metadata, prompt-paired differences, bootstrap summaries, and a provider-agnostic compute ledger. Analysis code will regenerate the primary plots, intervals, effect sizes, and stopping decision from those released tables.
+
+The fixed protocol and data schemas are defined before the formal high-update evaluations to reduce cherry-picking risk.
+
+Source speaker audio, private dataset manifests/paths, credentials, and speaker-specific model weights are outside the public release when redistribution is not permitted.
+
+## Publishing the evaluator
+
+Before publishing any hosted copy, keep it free of private datasets, checkpoints, credentials, or proprietary audio. A public template should contain only this tool, the protocol, analysis code, and explicitly redistributable demo material.
 
 **Suggested title:** TTS Blind Eval Studio
 
-**Short description:** Reproducible CPU-only blind listening tests for TTS models and checkpoints, with deterministic A/B/C randomization and CSV/JSON export.
+**Short description:** Reproducible CPU-only blind listening tests for TTS models and checkpoints, with deterministic A/B/C randomization and machine-readable export.
 
 **Tags:** TTS, speech, evaluation, audio, Streamlit, research
 
 ## Privacy
 
-Uploaded audio is used by the running Streamlit session for playback and evaluation. This repository itself contains no uploaded audio and performs no external API calls. Users should still avoid uploading material they are not permitted to process in their chosen environment.
+Uploaded audio is used by the running Streamlit session for playback and evaluation. This repository itself contains no uploaded audio and performs no external service calls. Users should still avoid uploading material they are not permitted to process in their chosen environment.
 
 ## License
 
