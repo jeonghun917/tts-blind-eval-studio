@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 import streamlit as st
 
 
-APP_VERSION = "2.0.0-alpha.3"
+APP_VERSION = "2.0.0-alpha.4"
 LABELS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 GROUP_RE = re.compile(r"^(?P<item>.+?)__(?P<candidate>.+)\.wav$", re.IGNORECASE)
 ALLOWED_METADATA_NAMES = {"metadata.json", "candidate_metadata.json"}
@@ -199,9 +199,9 @@ def _validate_protocol_items(grouped: dict, prompt_by_id: dict) -> list[str]:
 
 
 def _build_mapping(grouped, seed_text: str):
-    rng = random.Random(_stable_seed(seed_text))
     mapping = {}
     for item, candidates in grouped.items():
+        rng = random.Random(_stable_seed(f"{seed_text}::candidate::{item}"))
         shuffled = list(candidates)
         rng.shuffle(shuffled)
         mapping[item] = [
@@ -209,6 +209,13 @@ def _build_mapping(grouped, seed_text: str):
             for i, candidate in enumerate(shuffled)
         ]
     return mapping
+
+
+def _presentation_order(mapping: dict, seed_text: str) -> list[str]:
+    order = list(mapping.keys())
+    rng = random.Random(_stable_seed(f"{seed_text}::prompt_order"))
+    rng.shuffle(order)
+    return order
 
 
 def _anchor_help(dimension: dict) -> str:
@@ -268,7 +275,8 @@ def _session_metadata_json(
         "session_started_at_utc": session_started_at,
         "exported_at_utc": datetime.now(timezone.utc).isoformat(),
         "session_note": session_note,
-        "item_ids": item_ids,
+        "presentation_order": item_ids,
+        "item_ids": sorted(item_ids),
         "item_count": len(item_ids),
         "candidate_count_per_item": candidate_count,
         "completion_status": completion_status,
@@ -366,6 +374,7 @@ if package_errors:
     st.stop()
 
 mapping = _build_mapping(grouped, seed_text)
+presentation_order = _presentation_order(mapping, seed_text)
 session_token = hashlib.sha256(archive_bytes + seed_text.encode("utf-8")).hexdigest()[:16]
 session_started_key = f"session_started::{session_token}"
 if session_started_key not in st.session_state:
@@ -379,7 +388,8 @@ st.success(
 
 results = []
 preferences = {}
-for item, rows in mapping.items():
+for item in presentation_order:
+    rows = mapping[item]
     prompt = prompt_by_id[item]
     st.divider()
     st.subheader(f"{item} · {prompt['category']}")
@@ -493,7 +503,7 @@ if export_allowed:
             seed_text=seed_text,
             session_note=session_note,
             session_started_at=session_started_at,
-            item_ids=list(mapping.keys()),
+            item_ids=presentation_order,
             candidate_count=len(next(iter(mapping.values()))),
             completion_status=completion_status,
             missing_primary_count=len(missing_primary),
